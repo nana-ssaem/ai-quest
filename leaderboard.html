@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>실시간 순위판 · AI 리터러시 퀘스트</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<!-- 참여 QR 코드 생성 라이브러리 (gameUrl을 넣었을 때만 사용) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* =========================================================
+   색상 설정 (게임 화면과 같은 톤)
+   ========================================================= */
+:root{
+  --bg:#0a0f24; --bg-2:#141d3f; --primary:#5b6cff; --primary-2:#8b5cf6; --accent:#22d3ee;
+  --gold:#fbbf24; --silver:#cbd5e1; --bronze:#f59e0b;
+  --glass:rgba(255,255,255,.07); --glass-line:rgba(255,255,255,.16); --soft:#c3cbf2;
+  --font:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--font);color:#fff;min-height:100vh;word-break:keep-all;-webkit-font-smoothing:antialiased;
+  background:radial-gradient(1100px 650px at 10% -10%,#26306b 0%,transparent 60%),
+             radial-gradient(900px 600px at 110% 110%,#3b1f6e 0%,transparent 55%),
+             linear-gradient(160deg,var(--bg),var(--bg-2));
+  background-attachment:fixed;padding-bottom:80px;overflow-x:hidden
+}
+button{font-family:inherit;cursor:pointer;border:none;color:inherit;background:none}
+:focus-visible{outline:4px solid var(--accent);outline-offset:3px;border-radius:10px}
+.grid-bg{
+  position:fixed;inset:0;pointer-events:none;opacity:.18;
+  background-image:linear-gradient(rgba(120,140,255,.3) 1px,transparent 1px),linear-gradient(90deg,rgba(120,140,255,.3) 1px,transparent 1px);
+  background-size:52px 52px;mask-image:radial-gradient(ellipse at 50% 20%,#000 20%,transparent 75%);
+  -webkit-mask-image:radial-gradient(ellipse at 50% 20%,#000 20%,transparent 75%)
+}
+.wrap{position:relative;max-width:1280px;margin:0 auto;padding:20px clamp(16px,3vw,36px)}
+
+/* ---------- 상단 ---------- */
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin-bottom:20px}
+.title{display:flex;align-items:center;gap:14px}
+.title-icon{
+  width:58px;height:58px;border-radius:18px;display:grid;place-items:center;font-size:1.9rem;
+  background:linear-gradient(135deg,var(--primary),var(--primary-2));box-shadow:0 0 26px rgba(91,108,255,.6)
+}
+.title h1{font-size:clamp(1.6rem,3.4vw,2.5rem);font-weight:900;letter-spacing:-.03em;line-height:1.15}
+.title p{color:var(--soft);font-weight:700;font-size:1.05rem}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-line);font-weight:800;font-size:1rem}
+.live-dot{width:11px;height:11px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:ping 1.6s infinite}
+.pill.off .live-dot{background:#f87171;animation:none}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(34,197,94,.7)}70%{box-shadow:0 0 0 12px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+.seg{display:inline-flex;padding:4px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-line)}
+.seg button{min-height:42px;padding:8px 16px;border-radius:999px;font-weight:800;font-size:.98rem;color:var(--soft);transition:background .2s,color .2s}
+.seg button[aria-pressed="true"]{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff}
+.icon-btn{min-height:46px;padding:8px 16px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-line);font-weight:800;transition:transform .15s}
+.icon-btn:hover{transform:translateY(-2px)}
+
+/* ---------- 본문 레이아웃 ---------- */
+.main{display:grid;grid-template-columns:1fr 300px;gap:22px;align-items:start}
+.main.no-qr{grid-template-columns:1fr}
+.side{position:sticky;top:20px;display:grid;gap:16px}
+.panel{background:var(--glass);border:1px solid var(--glass-line);border-radius:22px;padding:18px;backdrop-filter:blur(6px)}
+.qr-box{text-align:center}
+.qr-box h2{font-size:1.2rem;font-weight:900;margin-bottom:12px}
+#qr{display:inline-block;padding:12px;background:#fff;border-radius:16px}
+#qr img,#qr canvas{display:block;width:200px;height:200px}
+.qr-url{margin-top:10px;font-size:.85rem;color:var(--soft);word-break:break-all}
+.stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{text-align:center;padding:12px 6px;border-radius:16px;background:rgba(255,255,255,.06)}
+.stat b{display:block;font-size:2rem;font-weight:900;line-height:1.1}
+.stat span{font-size:.92rem;color:var(--soft);font-weight:700}
+.rule{font-size:.95rem;color:var(--soft);line-height:1.6}
+.rule b{color:#fff}
+
+/* ---------- 시상대(1~3위) ---------- */
+.podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:16px;align-items:end;margin-bottom:22px}
+.place{
+  position:relative;text-align:center;border-radius:24px 24px 18px 18px;padding:22px 14px 18px;
+  background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.04));border:2px solid var(--glass-line);
+  min-height:200px;display:flex;flex-direction:column;justify-content:flex-end;
+  animation:rise .6s cubic-bezier(.2,1.2,.4,1) both
+}
+.place.p1{min-height:250px;border-color:rgba(251,191,36,.75);box-shadow:0 0 50px rgba(251,191,36,.3);animation-delay:.1s}
+.place.p2{border-color:rgba(203,213,225,.6)}
+.place.p3{border-color:rgba(245,158,11,.55);animation-delay:.2s}
+.place.empty{opacity:.35}
+@keyframes rise{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
+.medal{font-size:clamp(2.6rem,5vw,3.6rem);line-height:1;margin-bottom:8px}
+.p1 .medal{font-size:clamp(3.2rem,6vw,4.4rem);animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px)}}
+.place .nick{font-size:clamp(1.3rem,2.6vw,2rem);font-weight:900;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.place .score{font-size:clamp(1.6rem,3vw,2.4rem);font-weight:900;margin-top:4px}
+.p1 .score{color:var(--gold)}
+.place .time{color:var(--soft);font-weight:700;font-size:1.05rem}
+
+/* ---------- 4위 이하 목록 ---------- */
+.board{background:var(--glass);border:1px solid var(--glass-line);border-radius:22px;overflow:hidden}
+.row{
+  display:grid;grid-template-columns:70px 1fr 120px 110px 120px;align-items:center;gap:10px;
+  padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);font-size:clamp(1.05rem,1.7vw,1.3rem);font-weight:700
+}
+.row.head{border-top:none;font-size:.95rem;color:var(--soft);font-weight:800;background:rgba(255,255,255,.04)}
+.row .rank{font-weight:900;color:#a5b4fc}
+.row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .sc{font-weight:900}
+.row .num{text-align:right}
+.row.new{animation:flash 2.4s ease}
+.place.new{animation:rise .6s cubic-bezier(.2,1.2,.4,1) both,flashBorder 2.4s ease}
+@keyframes flash{0%,40%{background:rgba(34,211,238,.28)}100%{background:transparent}}
+@keyframes flashBorder{0%,40%{box-shadow:0 0 0 4px rgba(34,211,238,.7),0 0 40px rgba(34,211,238,.6)}}
+.msg{padding:40px 20px;text-align:center;color:var(--soft);font-size:1.25rem;font-weight:700}
+
+.credit{
+  position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:5;white-space:nowrap;
+  padding:10px 20px;border-radius:999px;background:rgba(10,15,36,.75);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.2);font-size:.95rem;font-weight:600;color:#e7eaff
+}
+.credit b{color:#fff;font-weight:800}
+
+@media (max-width:980px){
+  .main{grid-template-columns:1fr}
+  .side{position:static;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+}
+@media (max-width:620px){
+  .podium{grid-template-columns:1fr;gap:10px}
+  .place,.place.p1{min-height:auto}
+  .podium .p1{order:-1}
+  .row{grid-template-columns:48px 1fr 70px 80px;padding:12px 14px}
+  .row .hide-sm{display:none}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="grid-bg" aria-hidden="true"></div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <div class="title-icon" aria-hidden="true">🏆</div>
+      <div><h1>실시간 순위판</h1><p id="subTitle">AI 리터러시 퀘스트</p></div>
+    </div>
+    <div class="controls">
+      <span class="pill" id="livePill"><span class="live-dot" aria-hidden="true"></span><span id="liveText">연결 중</span></span>
+      <div class="seg" role="group" aria-label="집계 방식">
+        <button id="modeFirst" aria-pressed="true">첫 도전 기준</button>
+        <button id="modeBest" aria-pressed="false">최고 기록 기준</button>
+      </div>
+      <button class="icon-btn" id="fsBtn">⛶ 전체 화면</button>
+    </div>
+  </header>
+
+  <div class="main" id="main">
+    <section aria-label="순위">
+      <div class="podium" id="podium"></div>
+      <div class="board" id="board" aria-live="polite"></div>
+    </section>
+
+    <aside class="side">
+      <div class="panel qr-box" id="qrPanel" hidden>
+        <h2>📱 QR로 참여하기</h2>
+        <div id="qr"></div>
+        <p class="qr-url" id="qrUrl"></p>
+      </div>
+      <div class="panel">
+        <div class="stat-row">
+          <div class="stat"><b id="stPeople">0</b><span>참가 선생님</span></div>
+          <div class="stat"><b id="stSubmit">0</b><span>총 제출</span></div>
+        </div>
+      </div>
+      <div class="panel rule">
+        <b>순위 기준</b><br>
+        ① 점수가 높은 순<br>② 같으면 더 빨리 푼 순<br>③ 그래도 같으면 먼저 제출한 순<br>
+        <span id="modeNote"></span>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer class="credit">Created by <b>나나쌤 (ANNA BAEK)</b></footer>
+
+<script>
+/* =========================================================
+   ★ 설정 ★
+   scriptUrl : 게임과 같은 Apps Script 웹앱 주소(…/exec)
+   gameUrl   : 참가자가 접속할 게임 주소. 넣으면 QR이 자동으로 표시됨
+   회차는 주소 뒤 ?room=김포 로 지정 (게임 QR에도 같은 회차가 자동으로 붙음)
+   ========================================================= */
+const CONFIG = {
+  scriptUrl: 'https://script.google.com/macros/s/AKfycby9a183q0qAarL5kgkUsJZ5mfDqy8DcvCBrvwn3cJ5fQSCSJdICOsMjYkCJR4iaN-Ewrw/exec',
+  gameUrl: '',
+  defaultRoom: '기본',
+  refreshMs: 3000      // 갱신 간격(밀리초)
+};
+
+const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const ROOM = (params.get('room') || CONFIG.defaultRoom).trim().slice(0, 20);
+let mode = params.get('mode') === 'best' ? 'best' : 'first';
+let seen = null;          // 이미 화면에 있던 기록(새 기록 반짝임용)
+let timer = null;
+
+$('#subTitle').textContent = `AI 리터러시 퀘스트 · ${ROOM} 회차`;
+
+/* 시간 표시: 83.4 → 1:23.4 */
+const fmt = sec => { const m = Math.floor(sec / 60), s = (sec - m * 60).toFixed(1); return m ? `${m}:${s.padStart(4, '0')}` : `${s}초`; };
+const keyOf = r => r.nick + '|' + r.t;
+const el = (tag, cls, text) => { const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; };
+
+/* ---------- 참여 QR ---------- */
+(function setupQR(){
+  if(!CONFIG.gameUrl){ $('#main').classList.add('no-qr'); return; }
+  const url = CONFIG.gameUrl + (CONFIG.gameUrl.includes('?') ? '&' : '?') + 'room=' + encodeURIComponent(ROOM);
+  $('#qrPanel').hidden = false;
+  $('#qrUrl').textContent = url;
+  if(window.QRCode) new QRCode($('#qr'), { text: url, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+  else $('#qr').textContent = 'QR을 불러오지 못했어요';
+})();
+
+/* ---------- 집계 방식 전환 ---------- */
+function setMode(m){
+  mode = m; seen = null;
+  $('#modeFirst').setAttribute('aria-pressed', m === 'first');
+  $('#modeBest').setAttribute('aria-pressed', m === 'best');
+  $('#modeNote').textContent = m === 'first'
+    ? '※ 지금은 각 선생님의 첫 도전 기록만 집계해요 (시상 권장)'
+    : '※ 지금은 각 선생님의 최고 기록으로 집계해요';
+  clearTimeout(timer); load();
+}
+$('#modeFirst').addEventListener('click', () => setMode('first'));
+$('#modeBest').addEventListener('click', () => setMode('best'));
+
+/* ---------- 전체 화면 (빔 프로젝터용) ---------- */
+$('#fsBtn').addEventListener('click', () => {
+  if(document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen?.();
+});
+
+/* ---------- 연결 상태 표시 ---------- */
+function setLive(ok, text){
+  $('#livePill').classList.toggle('off', !ok);
+  $('#liveText').textContent = text;
+}
+
+/* ---------- 데이터 불러오기 (주기적으로 반복) ---------- */
+async function load(){
+  if(!CONFIG.scriptUrl){
+    setLive(false, '설정 필요');
+    $('#podium').innerHTML = '';
+    $('#board').replaceChildren(el('div', 'msg', 'leaderboard.html 안의 scriptUrl에 Apps Script 주소를 넣어 주세요.'));
+    return;
+  }
+  try{
+    const res = await fetch(`${CONFIG.scriptUrl}?room=${encodeURIComponent(ROOM)}&mode=${mode}&t=${Date.now()}`);
+    const data = await res.json();
+    if(!data.ok) throw new Error('bad');
+    render(data);
+    const now = new Date();
+    setLive(true, `LIVE · ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`);
+  }catch(e){
+    setLive(false, '재연결 중…');
+  }finally{
+    timer = setTimeout(load, CONFIG.refreshMs);
+  }
+}
+
+/* ---------- 화면 그리기 ---------- */
+function render(data){
+  const list = data.list || [];
+  const fresh = new Set(list.map(keyOf));
+  const isNew = r => seen && !seen.has(keyOf(r));
+
+  $('#stPeople').textContent = data.count;
+  $('#stSubmit').textContent = data.submissions;
+
+  // 시상대: 화면 배치는 2위-1위-3위
+  const podium = $('#podium'); podium.innerHTML = '';
+  const medals = ['🥇', '🥈', '🥉'];
+  [1, 0, 2].forEach(i => {
+    const r = list[i];
+    const box = el('div', `place p${i + 1}` + (r ? '' : ' empty') + (r && isNew(r) ? ' new' : ''));
+    box.append(el('div', 'medal', medals[i]));
+    if(r){
+      box.append(el('div', 'nick', r.nick));
+      box.append(el('div', 'score', `${r.score}점`));
+      box.append(el('div', 'time', `⏱ ${fmt(r.sec)} · ${r.correct}/${r.total}`));
+    }else{
+      box.append(el('div', 'nick', '도전자 기다리는 중'));
+    }
+    podium.append(box);
+  });
+
+  // 4위부터 목록
+  const board = $('#board');
+  const rows = [];
+  if(!list.length){
+    rows.push(el('div', 'msg', '아직 기록이 없어요. QR로 접속해 첫 번째 주인공이 되어 보세요!'));
+  }else if(list.length > 3){
+    const head = el('div', 'row head');
+    head.append(el('span', '', '순위'), el('span', '', '닉네임'), el('span', 'num', '점수'), el('span', 'num', '시간'), el('span', 'num hide-sm', '도전'));
+    rows.push(head);
+    list.slice(3).forEach((r, i) => {
+      const row = el('div', 'row' + (isNew(r) ? ' new' : ''));
+      row.append(
+        el('span', 'rank', `${i + 4}`),
+        el('span', 'nm', r.nick),
+        el('span', 'sc num', `${r.score}점`),
+        el('span', 'num', fmt(r.sec)),
+        el('span', 'num hide-sm', `${r.tries}회`)
+      );
+      rows.push(row);
+    });
+  }
+  board.replaceChildren(...rows);
+  board.hidden = !rows.length;
+  seen = fresh;
+}
+
+/* 화면이 다시 보이면 즉시 갱신 */
+document.addEventListener('visibilitychange', () => { if(!document.hidden){ clearTimeout(timer); load(); } });
+
+setMode(mode);
+</script>
+</body>
+</html>
